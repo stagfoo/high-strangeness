@@ -1,1 +1,1 @@
-# high-strangeness
+# High Strangeness - One Trip
