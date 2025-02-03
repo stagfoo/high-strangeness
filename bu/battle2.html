@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Duck Hunt Game - Canvas Version</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: #87CEEB;
+    }
+    #gameContainer {
+      position: relative;
+    }
+    canvas {
+      border: 2px solid #333;
+    }
+    #lightOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+    #shoot-button {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 80px;
+      height: 80px;
+      background-color: #ff4444;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-family: Arial, sans-serif;
+      font-weight: bold;
+      user-select: none;
+      cursor: pointer;
+    }
+    #control-area {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 200px;
+      background-color: rgba(0, 0, 0, 0.1);
+      border: 2px solid black;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+    <svg id="lightOverlay">
+      <defs>
+        <mask id="spotlight">
+          <rect width="100%" height="100%" fill="white" opacity="0.7"/>
+          <circle id="spotlightCircle" cx="400" cy="300" r="50" fill="black"/>
+        </mask>
+      </defs>
+      <rect width="100%" height="100%" fill="black" mask="url(#spotlight)"/>
+    </svg>
+    <div id="control-area"></div>
+    <div id="shoot-button">SHOOT</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const controlArea = document.getElementById('control-area');
+    const shootButton = document.getElementById('shoot-button');
+    const lightOverlay = document.getElementById('lightOverlay');
+    const spotlightCircle = document.getElementById('spotlightCircle');
+
+    // Set canvas size
+    canvas.width = window.innerwidth;
+    canvas.height = window.innerHeight;
+    
+    // Ensure SVG overlay matches canvas size
+    lightOverlay.setAttribute('width', canvas.width);
+    lightOverlay.setAttribute('height', canvas.height);
+
+    // Game state
+    const gameState = {
+      player: {
+        x: 100,
+        y: canvas.height - 150,
+        width: 50,
+        height: 100,
+        isJumping: false,
+        jumpOffset: 0
+      },
+      duck: {
+        x: canvas.width - 150,
+        y: 100,
+        width: 50,
+        height: 50,
+        direction: 1,
+        speed: 5
+      },
+      crosshair: {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        size: 32
+      },
+      isControlling: false
+    };
+
+    // Drawing functions
+    function drawPlayer() {
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(
+        gameState.player.x, 
+        gameState.player.y - gameState.player.jumpOffset, 
+        gameState.player.width, 
+        gameState.player.height
+      );
+    }
+
+    function drawDuck() {
+      ctx.fillStyle = 'red';
+      ctx.fillRect(
+        gameState.duck.x,
+        gameState.duck.y,
+        gameState.duck.width,
+        gameState.duck.height
+      );
+    }
+
+    function drawCrosshair() {
+      ctx.strokeStyle = 'limegreen';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(
+        gameState.crosshair.x - gameState.crosshair.size / 2,
+        gameState.crosshair.y - gameState.crosshair.size / 2,
+        gameState.crosshair.size,
+        gameState.crosshair.size
+      );
+      ctx.setLineDash([]);
+    }
+
+    function updateSpotlight() {
+      spotlightCircle.setAttribute('cx', gameState.crosshair.x);
+      spotlightCircle.setAttribute('cy', gameState.crosshair.y);
+    }
+
+    function clear() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Control handlers
+    function startControl(e) {
+      gameState.isControlling = true;
+      moveControl(e);
+    }
+
+    function endControl() {
+      gameState.isControlling = false;
+    }
+
+    function moveControl(e) {
+      if (!gameState.isControlling) return;
+      
+      const rect = controlArea.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      let clientX, clientY;
+
+      if (e.type.startsWith('touch')) {
+        const touch = e.touches[0];
+        clientX = touch.clientX;
+        clientY = touch.clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+
+      const offsetX = clientX - rect.left;
+      const offsetY = clientY - rect.top;
+
+      // Map control area coordinates to canvas coordinates
+      gameState.crosshair.x = (offsetX / rect.width) * canvas.width;
+      gameState.crosshair.y = (offsetY / rect.height) * canvas.height;
+
+      // Clamp crosshair position
+      gameState.crosshair.x = Math.min(Math.max(gameState.crosshair.x, 0), canvas.width);
+      gameState.crosshair.y = Math.min(Math.max(gameState.crosshair.y, 0), canvas.height);
+      
+      // Update spotlight position
+      updateSpotlight();
+    }
+
+    function shoot() {
+      if (!gameState.player.isJumping) {
+        gameState.player.isJumping = true;
+        gameState.player.jumpOffset = 50;
+
+        // Check if duck is hit
+        const crosshairBounds = {
+          left: gameState.crosshair.x - gameState.crosshair.size / 2,
+          right: gameState.crosshair.x + gameState.crosshair.size / 2,
+          top: gameState.crosshair.y - gameState.crosshair.size / 2,
+          bottom: gameState.crosshair.y + gameState.crosshair.size / 2
+        };
+
+        const duckBounds = {
+          left: gameState.duck.x,
+          right: gameState.duck.x + gameState.duck.width,
+          top: gameState.duck.y,
+          bottom: gameState.duck.y + gameState.duck.height
+        };
+
+        if (
+          crosshairBounds.left < duckBounds.right &&
+          crosshairBounds.right > duckBounds.left &&
+          crosshairBounds.top < duckBounds.bottom &&
+          crosshairBounds.bottom > duckBounds.top
+        ) {
+          alert('Duck hit!');
+        }
+
+        // Reset jump after animation
+        setTimeout(() => {
+          gameState.player.isJumping = false;
+          gameState.player.jumpOffset = 0;
+        }, 200);
+      }
+    }
+
+    // Event listeners
+    controlArea.addEventListener('mousedown', startControl);
+    document.addEventListener('mouseup', endControl);
+    controlArea.addEventListener('mousemove', moveControl);
+
+    controlArea.addEventListener('touchstart', startControl, { passive: true });
+    document.addEventListener('touchend', endControl);
+    controlArea.addEventListener('touchmove', moveControl, { passive: true });
+
+    shootButton.addEventListener('click', shoot);
+    shootButton.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      shoot();
+    });
+
+    // Game loop
+    function updateDuck() {
+      gameState.duck.x += gameState.duck.direction * gameState.duck.speed;
+      if (gameState.duck.x > canvas.width - gameState.duck.width || gameState.duck.x < 0) {
+        gameState.duck.direction *= -1;
+      }
+    }
+
+    function gameLoop() {
+      clear();
+      updateDuck();
+      drawPlayer();
+      drawDuck();
+      drawCrosshair();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Start the game
+    gameLoop();
+  </script>
+</body>
+</html>

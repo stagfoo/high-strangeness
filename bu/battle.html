@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>High Strangeness</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      display: flex;
+      justify-content: flex-start;
+      align-items: flex-start;
+      min-height: 100vh;
+      background: #87CEEB;
+    }
+    #gameContainer {
+      position: relative;
+    }
+    canvas {
+      border: 2px solid #333;
+    }
+    #shoot-button {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 80px;
+      height: 80px;
+      background-color: #ff4444;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-family: Arial, sans-serif;
+      font-weight: bold;
+      user-select: none;
+      cursor: pointer;
+    }
+    #control-area {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 200px;
+      background-color: rgba(0, 0, 0, 0.1);
+      border: 2px solid black;
+    }
+    #captures {
+      position: absolute;
+      bottom: -55px;
+      left: 0px;
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+    }
+    .capture {
+      border: 2px solid white;
+      background: white;
+    }
+    #lightOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+<!--  put player here     -->
+    <canvas id="gameCanvas"></canvas>
+    <svg id="lightOverlay" width="480" height="960">
+      <defs>
+        <mask id="spotlight">
+          <rect width="100%" height="100%" fill="white" opacity="0.8"/>
+          <circle id="spotlightCircle" cx="240" cy="480" r="80" fill="black">
+            <animate attributeName="r" values="80;85;80" dur="2s" repeatCount="indefinite"/>
+          </circle>
+        </mask>
+        <radialgradient id="spotlightGradient" cx="0.5" cy="0.5" r="1">
+          <stop offset="80%" stop-color="black" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="black" stop-opacity="1"/>
+        </radialgradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#spotlightGradient)" mask="url(#spotlight)"/>
+    </svg>
+    <div id="control-area"></div>
+    <div id="shoot-button">SHOOT</div>
+    <div id="captures"></div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const controlArea = document.getElementById('control-area');
+    const shootButton = document.getElementById('shoot-button');
+    const capturesContainer = document.getElementById('captures');
+
+    // Set canvas size
+    canvas.width = 480;
+    canvas.height = 960;
+
+    // Game state
+    const gameState = {
+      player: {
+        x: 100,
+        y: canvas.height - 150,
+        width: 50,
+        height: 100,
+        isJumping: false,
+        jumpOffset: 0
+      },
+      duck: {
+        x: canvas.width - 150,
+        y: 100,
+        width: 50,
+        height: 50,
+        direction: 1,
+        speed: 5
+      },
+      duck1: {
+        x: canvas.width - 150,
+        y: 100,
+        width: 100,
+        height: 50,
+        direction: 1,
+        speed: 5
+      },
+      crosshair: {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        size: 128
+      },
+      isControlling: false
+    };
+
+    // Drawing Player
+    // move above the overlay     
+    function drawPlayer() {
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(
+        gameState.player.x, 
+        gameState.player.y - gameState.player.jumpOffset, 
+        gameState.player.width, 
+        gameState.player.height
+      );
+    }
+
+    //     Create Monsters
+    function drawDuck() {
+      ctx.fillStyle = 'red';
+      ctx.fillRect(
+        gameState.duck.x,
+        gameState.duck.y,
+        gameState.duck.width,
+        gameState.duck.height
+      );
+    }
+    function drawDuck1() {
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(
+        gameState.duck1.x,
+        gameState.duck1.y,
+        gameState.duck1.width,
+        gameState.duck1.height
+      );
+    }
+    //     ----------
+
+    function drawCrosshair() {
+      ctx.strokeStyle = 'limegreen';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(
+        gameState.crosshair.x - gameState.crosshair.size / 2,
+        gameState.crosshair.y - gameState.crosshair.size / 2,
+        gameState.crosshair.size,
+        gameState.crosshair.size
+      );
+      ctx.setLineDash([]);
+    }
+
+    function clear() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function captureCrosshairArea() {
+      // Create a temporary canvas for the capture
+      const captureCanvas = document.createElement('canvas');
+      const captureCtx = captureCanvas.getContext('2d');
+      
+      // Set capture size to crosshair size
+      captureCanvas.width = gameState.crosshair.size;
+      captureCanvas.height = gameState.crosshair.size;
+      
+      // Calculate capture coordinates
+      const captureX = gameState.crosshair.x - gameState.crosshair.size / 2;
+      const captureY = gameState.crosshair.y - gameState.crosshair.size / 2;
+      
+      // Draw the portion of the main canvas to the capture canvas
+      captureCtx.drawImage(
+        canvas,
+        captureX,
+        captureY,
+        gameState.crosshair.size,
+        gameState.crosshair.size,
+        0,
+        0,
+        gameState.crosshair.size,
+        gameState.crosshair.size
+      );
+      
+      // Convert to image and add to captures container
+      const img = document.createElement('img');
+      img.src = captureCanvas.toDataURL();
+      img.className = 'capture';
+      
+      // Keep only the last 5 captures
+      if (capturesContainer.children.length >= 5) {
+        capturesContainer.removeChild(capturesContainer.firstChild);
+      }
+      
+      capturesContainer.appendChild(img);
+      
+      // Optional: save the image
+      // Uncomment the following lines to enable download
+      /*
+      const link = document.createElement('a');
+      link.download = `capture-${Date.now()}.png`;
+      link.href = captureCanvas.toDataURL();
+      link.click();
+      */
+    }
+
+    // Control handlers
+    function startControl(e) {
+      gameState.isControlling = true;
+      moveControl(e);
+      if (!gameState.player.isJumping) {
+        gameState.player.isJumping = true;
+        gameState.player.jumpOffset = 50;
+      }
+    }
+
+    function endControl() {
+      gameState.isControlling = false;
+        gameState.player.isJumping = false;
+        gameState.player.jumpOffset = 0;
+    }
+
+    function updateSpotlight() {
+      const spotlightCircle = document.getElementById('spotlightCircle');
+      spotlightCircle.setAttribute('cx', gameState.crosshair.x);
+      spotlightCircle.setAttribute('cy', gameState.crosshair.y);
+    }
+
+    // Modify moveControl to update spotlight
+    function moveControl(e) {
+      if (!gameState.isControlling) return;
+      
+      const rect = controlArea.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      let clientX, clientY;
+
+      if (e.type.startsWith('touch')) {
+        const touch = e.touches[0];
+        clientX = touch.clientX;
+        clientY = touch.clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+
+      const offsetX = clientX - rect.left;
+      const offsetY = clientY - rect.top;
+
+      // Map control area coordinates to canvas coordinates
+      gameState.crosshair.x = (offsetX / rect.width) * canvas.width;
+      gameState.crosshair.y = (offsetY / rect.height) * canvas.height;
+
+      // Clamp crosshair position
+      gameState.crosshair.x = Math.min(Math.max(gameState.crosshair.x, 0), canvas.width);
+      gameState.crosshair.y = Math.min(Math.max(gameState.crosshair.y, 0), canvas.height);
+      
+      // Update spotlight position
+      updateSpotlight();
+    }
+
+    
+    function shoot() {
+      // Capture the area under crosshair
+      captureCrosshairArea();
+
+      // Start jump animation
+      if (!gameState.player.isJumping) {
+        gameState.player.isJumping = true;
+        gameState.player.jumpOffset = 50;
+
+        // Check if duck is hit
+        const crosshairBounds = {
+          left: gameState.crosshair.x - gameState.crosshair.size / 2,
+          right: gameState.crosshair.x + gameState.crosshair.size / 2,
+          top: gameState.crosshair.y - gameState.crosshair.size / 2,
+          bottom: gameState.crosshair.y + gameState.crosshair.size / 2
+        };
+
+        const duckBounds = {
+          left: gameState.duck.x,
+          right: gameState.duck.x + gameState.duck.width,
+          top: gameState.duck.y,
+          bottom: gameState.duck.y + gameState.duck.height
+        };
+
+        if (
+          crosshairBounds.left < duckBounds.right &&
+          crosshairBounds.right > duckBounds.left &&
+          crosshairBounds.top < duckBounds.bottom &&
+          crosshairBounds.bottom > duckBounds.top
+        ) {
+          console.log('Duck hit!');
+        }
+
+        // Reset jump after animation
+        setTimeout(() => {
+          gameState.player.isJumping = false;
+          gameState.player.jumpOffset = 0;
+        }, 200);
+      }
+    }
+
+    // Event listeners
+    controlArea.addEventListener('mousedown', startControl);
+    document.addEventListener('mouseup', endControl);
+    controlArea.addEventListener('mousemove', moveControl);
+
+    controlArea.addEventListener('touchstart', startControl, { passive: true });
+    document.addEventListener('touchend', endControl);
+    controlArea.addEventListener('touchmove', moveControl, { passive: true });
+
+    shootButton.addEventListener('click', shoot);
+    shootButton.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      shoot();
+    });
+    document.addEventListener('keypress', (e) => {
+      console.log(e.code)
+      if(e.code == "Space") {
+        e.preventDefault();
+        shoot();
+      }
+    })
+
+    // Game loop
+    //MONSTERS HERE
+    function updateDuck() {
+      gameState.duck.x += gameState.duck.direction * gameState.duck.speed;
+      if (gameState.duck.x > canvas.width - gameState.duck.width || gameState.duck.x < 0) {
+        gameState.duck.direction *= -1;
+      }
+      
+      gameState.duck1.y += gameState.duck1.direction * gameState.duck1.speed;
+      if (gameState.duck1.y > canvas.width - gameState.duck1.width || gameState.duck1.y < 0) {
+        gameState.duck1.direction *= -1;
+      }
+    }
+
+    function gameLoop() {
+      clear();
+      updateDuck();
+      drawPlayer();
+      drawDuck();
+      drawDuck1();
+      drawCrosshair();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Start the game
+    gameLoop();
+  </script>
+</body>
+</html>
