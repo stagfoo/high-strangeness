@@ -3,15 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>RV</title>
   <link rel="stylesheet" href="main.css">
+  <style>
+    body {
+      background-color: #333;
+      color: white;
+    }
+    .rv-interior {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      background-image: url('https://cdn.glitch.global/f0df8993-5320-4693-93a9-915d596b5624/rv-interior.png?v=1693796938522');
+      background-size: cover;
+      background-position: center;
+    }
+    .clickable-area {
+      position: absolute;
+      background-color: rgba(255, 255, 255, 0.2);
+      border: 2px solid white;
+      border-radius: 10px;
+      text-align: center;
+      padding: 20px;
+      transition: background-color 0.3s;
+    }
+    .clickable-area:hover {
+      background-color: rgba(255, 255, 255, 0.5);
+    }
+    a {
+      color: white;
+      text-decoration: none;
+      font-size: 24px;
+    }
+    #front-seat {
+      top: 50%;
+      left: 15%;
+      transform: translate(-50%, -50%);
+    }
+    #side-door {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    #laptop {
+      top: 50%;
+      right: 5%;
+      transform: translateY(-50%);
+    }
+  </style>
 </head>
 <body>
-  <div class="menu">
-    
-  
-    <a href="/" >Back</a>
-    
+  <div class="rv-interior">
+    <div id="front-seat" class="clickable-area">
+      <a href="comic.html">Front Seat</a>
     </div>
+    <div id="side-door" class="clickable-area">
+      <a href="battle.html">Side Door</a>
+    </div>
+    <div id="laptop" class="clickable-area">
+      <a href="shop.html">Laptop</a>
+    </div>
+  </div>
 </body>
 </html>
